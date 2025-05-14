@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OpenAI プロキシサーバー (Vercel AI SDK対応)
 
-## Getting Started
+クライアント側でVercel AI SDK (`@ai-sdk/react`) を使用し、サーバー側のNext.js APIルートプロキシを通じてOpenAI APIのストリーミングレスポンスを利用するサンプルです。
 
-First, run the development server:
+## プロジェクト構成
+
+- **サーバー側（ルートディレクトリ）**: OpenAI APIへのプロキシ。Vercel AI SDK (`ai`, `@ai-sdk/openai`) を使用してストリーミング応答を処理し、Edge Runtimeで動作します。
+- **クライアント側（`client/`ディレクトリ）**: プロキシを通じてOpenAI APIと通信するNext.jsアプリケーション。Vercel AI SDKの`useChat`フックを使用します。
+
+## Gitサブモジュールの設定
+
+クライアント側のアプリケーションを別のリポジトリとして管理し、サブモジュールとして追加する場合は以下の手順に従ってください：
+
+1. クライアント側のリポジトリを作成します（例：GitHub上で新しいリポジトリを作成）
+
+2. クライアントディレクトリを初期化して新しいリポジトリにプッシュします：
+
+```bash
+cd client
+git init
+git add .
+git commit -m "初期コミット"
+git branch -M main
+git remote add origin git@github.com:yourusername/openai-client.git
+git push -u origin main
+```
+
+3. クライアントディレクトリを削除し、サブモジュールとして追加します：
+
+```bash
+cd ..
+rm -rf client
+git submodule add git@github.com:yourusername/openai-client.git client
+git commit -m "クライアントをサブモジュールとして追加"
+```
+
+4. リポジトリをクローンする際には、サブモジュールも含めて取得します：
+
+```bash
+git clone --recurse-submodules git@github.com:yourusername/openai-server.git
+```
+
+または、既にクローンしたリポジトリにサブモジュールを取得する場合：
+
+```bash
+git submodule init
+git submodule update
+```
+
+## セットアップ
+
+### サーバー側のセットアップ (ルートディレクトリ)
+
+1. 依存関係をインストールします:
+   ```bash
+   npm install
+   ```
+   (`ai`, `@ai-sdk/openai`, `openai`などが含まれます)
+
+2. `.env.local`ファイルを作成し、環境変数を設定します:
+   ```
+   OPENAI_API_KEY=sk-your-openai-api-key
+   INTERNAL_TOKEN=your-internal-token 
+   ```
+
+### クライアント側のセットアップ (`client/`ディレクトリ)
+
+1. クライアントディレクトリに移動します:
+   ```bash
+   cd client
+   ```
+2. 依存関係をインストールします:
+   ```bash
+   npm install
+   ```
+   (`@ai-sdk/react`, `ai`などが含まれます)
+
+3. `.env.local`ファイルを作成し、環境変数を設定します:
+   ```
+   NEXT_PUBLIC_OPENAI_PROXY_URL=http://localhost:3000/api/proxy
+   NEXT_PUBLIC_INTERNAL_TOKEN=your-internal-token
+   ```
+
+## 開発サーバーの起動
+
+### サーバー側 (ルートディレクトリ)
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+サーバーは `http://localhost:3000` で実行されます。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### クライアント側 (`client/`ディレクトリ)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+別のターミナルでクライアントディレクトリに移動し、以下のコマンドを実行します:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd client
+npm run dev
+```
+クライアントは `http://localhost:3001` で実行されます。
 
-## Learn More
+## 仕組み
 
-To learn more about Next.js, take a look at the following resources:
+### 1. プロキシAPIルート (サーバー側: `src/app/api/proxy/route.ts`)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Edge Runtimeで動作します。
+- Vercel AI SDK (`@ai-sdk/openai`のプロバイダと`ai`の`streamText`) を使用して、OpenAI APIからのレスポンスをストリーミング形式に変換します。
+- `result.toDataStreamResponse()` を使用して、ストリームをクライアントに返します。
+- クライアントからのリクエストに対し、`INTERNAL_TOKEN`による認証を行います。
+- CORSヘッダーを適切に設定するため、`middleware.ts`も使用しています。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 2. チャットクライアント (クライアント側: `client/src/components/ChatClient.tsx`)
 
-## Deploy on Vercel
+- Vercel AI SDKの`useChat`フックを使用します。
+- `api`オプションにプロキシのURL (`NEXT_PUBLIC_OPENAI_PROXY_URL`) を指定します。
+- `headers`オプションに認証用の`INTERNAL_TOKEN`を含めます。
+- ユーザーの入力を受け取り、プロキシ経由でOpenAI APIに送信し、ストリーミングされる応答をリアルタイムで表示します。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## CORS設定
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+サーバー側のルートディレクトリにある `middleware.ts` で、`/api/*` へのリクエストに対するCORSヘッダー (Access-Control-Allow-Originなど) を設定しています。これにより、`http://localhost:3001`（クライアント）から`http://localhost:3000`（サーバーAPI）へのクロスオリジンリクエストが許可されます。
+
+## セキュリティ上の注意点
+
+- `OPENAI_API_KEY`はサーバー側の環境変数でのみ管理し、クライアントには露出しません。
+- クライアントとサーバーAPI間の通信は`INTERNAL_TOKEN`で保護されています。
+
