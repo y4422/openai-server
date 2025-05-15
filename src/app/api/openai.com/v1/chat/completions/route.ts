@@ -29,10 +29,23 @@ export async function POST(req: NextRequest) {
     try {
         // リクエストからAPIキーを取得
         const authHeader = req.headers.get('authorization');
-        const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : process.env.OPENAI_API_KEY;
+        const envApiKey = process.env.OPENAI_API_KEY;
+
+        // APIキーの取得と取得元を特定
+        let apiKey = null;
+        if (authHeader?.startsWith('Bearer ')) {
+            apiKey = authHeader.substring(7);
+            console.log('[OpenAI Chat Completions] Authorization ヘッダーからAPIキーを取得しました');
+        } else if (envApiKey) {
+            apiKey = envApiKey;
+            console.log('[OpenAI Chat Completions] 環境変数からAPIキーを取得しました');
+        }
 
         if (!apiKey) {
-            return new NextResponse(JSON.stringify({ error: 'APIキーがありません' }), {
+            console.error('[OpenAI Chat Completions] APIキーがありません');
+            return new NextResponse(JSON.stringify({
+                error: 'OpenAI APIキーがありません。環境変数 OPENAI_API_KEY を設定するか、Authorization ヘッダーを指定してください。'
+            }), {
                 status: 401,
                 headers: {
                     'Content-Type': 'application/json',

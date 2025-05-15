@@ -27,10 +27,23 @@ export async function POST(req: NextRequest) {
     try {
         // リクエストからAPIキーを取得
         const authHeader = req.headers.get('authorization');
-        const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : process.env.OPENAI_API_KEY;
+        const envApiKey = process.env.OPENAI_API_KEY;
+
+        // APIキーの取得と取得元を特定
+        let apiKey = null;
+        if (authHeader?.startsWith('Bearer ')) {
+            apiKey = authHeader.substring(7);
+            console.log('[OpenAI Proxy] Authorization ヘッダーからAPIキーを取得しました');
+        } else if (envApiKey) {
+            apiKey = envApiKey;
+            console.log('[OpenAI Proxy] 環境変数からAPIキーを取得しました');
+        }
 
         if (!apiKey) {
-            return new NextResponse(JSON.stringify({ error: 'APIキーがありません' }), {
+            console.error('[OpenAI Proxy] APIキーがありません');
+            return new NextResponse(JSON.stringify({
+                error: 'OpenAI APIキーがありません。環境変数 OPENAI_API_KEY を設定するか、Authorization ヘッダーを指定してください。'
+            }), {
                 status: 401,
                 headers: {
                     'Content-Type': 'application/json',
@@ -113,7 +126,7 @@ export async function POST(req: NextRequest) {
         console.log('[OpenAI Proxy] 標準APIリクエストを処理');
 
         // OpenAI APIにリクエストを転送
-        const path = req.nextUrl.pathname.replace('/api/openai/v1', '');
+        const path = req.nextUrl.pathname.replace('/api/openai.com/v1', '');
         const url = `https://api.openai.com/v1${path}`;
 
         const proxyRes = await fetch(url, {
@@ -165,10 +178,23 @@ export async function GET(req: NextRequest) {
     try {
         // リクエストからAPIキーを取得
         const authHeader = req.headers.get('authorization');
-        const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : process.env.OPENAI_API_KEY;
+        const envApiKey = process.env.OPENAI_API_KEY;
+
+        // APIキーの取得と取得元を特定
+        let apiKey = null;
+        if (authHeader?.startsWith('Bearer ')) {
+            apiKey = authHeader.substring(7);
+            console.log('[OpenAI Proxy] Authorization ヘッダーからAPIキーを取得しました');
+        } else if (envApiKey) {
+            apiKey = envApiKey;
+            console.log('[OpenAI Proxy] 環境変数からAPIキーを取得しました');
+        }
 
         if (!apiKey) {
-            return new NextResponse(JSON.stringify({ error: 'APIキーがありません' }), {
+            console.error('[OpenAI Proxy] APIキーがありません');
+            return new NextResponse(JSON.stringify({
+                error: 'OpenAI APIキーがありません。環境変数 OPENAI_API_KEY を設定するか、Authorization ヘッダーを指定してください。'
+            }), {
                 status: 401,
                 headers: {
                     'Content-Type': 'application/json',
@@ -179,7 +205,7 @@ export async function GET(req: NextRequest) {
         }
 
         // OpenAI APIにリクエストを転送
-        const path = req.nextUrl.pathname.replace('/api/openai/v1', '');
+        const path = req.nextUrl.pathname.replace('/api/openai.com/v1', '');
         const url = `https://api.openai.com/v1${path}${req.nextUrl.search}`;
 
         const proxyRes = await fetch(url, {
