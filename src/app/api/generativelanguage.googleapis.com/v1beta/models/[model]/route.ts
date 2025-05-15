@@ -11,7 +11,7 @@ export async function OPTIONS(req: NextRequest) {
         headers: {
             'Access-Control-Allow-Origin': origin,
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version, x-goog-api-key',
             'Access-Control-Max-Age': '86400',
             'Access-Control-Allow-Credentials': 'true',
         },
@@ -59,16 +59,31 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Google AI] リクエスト受信: Path=${path}, Model=${modelName}, Action=${action}, SSE=${isSSE}`);
 
-        // リクエストからAPIキーを取得
+        // リクエストからAPIキーを取得（複数の場所を確認）
+        // 1. Authorization ヘッダー
         const authHeader = req.headers.get('authorization');
-        const apiKey = authHeader?.startsWith('Bearer ')
-            ? authHeader.substring(7)
-            : process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        // 2. x-goog-api-key ヘッダー (Google Generative AI SDK がデフォルトで使用)
+        const googleApiKeyHeader = req.headers.get('x-goog-api-key');
+        // 3. 環境変数
+        const envApiKey = process.env.GOOGLE_AI_API_KEY;
+
+        // 最初に見つかったAPIキーを使用
+        let apiKey = null;
+        if (authHeader?.startsWith('Bearer ')) {
+            apiKey = authHeader.substring(7);
+            console.log('[Google AI] Authorization ヘッダーからAPIキーを取得しました');
+        } else if (googleApiKeyHeader) {
+            apiKey = googleApiKeyHeader;
+            console.log('[Google AI] x-goog-api-key ヘッダーからAPIキーを取得しました');
+        } else if (envApiKey) {
+            apiKey = envApiKey;
+            console.log('[Google AI] 環境変数からAPIキーを取得しました');
+        }
 
         if (!apiKey) {
-            console.error('[Google AI] APIキーがありません');
+            console.error('[Google AI] APIキーが見つかりません');
             return new NextResponse(JSON.stringify({
-                error: 'Google AI APIキーがありません。環境変数 GOOGLE_GENERATIVE_AI_API_KEY を設定するか、Authorization ヘッダーを指定してください。'
+                error: 'Google AI APIキーがありません。環境変数 GOOGLE_AI_API_KEY を設定するか、Authorization ヘッダーまたは x-goog-api-key ヘッダーを指定してください。'
             }), {
                 status: 401,
                 headers: {
